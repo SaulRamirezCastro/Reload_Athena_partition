@@ -1,0 +1,20 @@
+custom:
+  stage: develop
+  ext_file: json.gz
+  bucket_config:
+    develop: cv-data-lake-tier-1-sandbox
+    test: cv-data-lake-tier-1-sandbox-test
+    prod_lake: cv-data-lake-tier-1
+    uat_lake: cv-data-lake-tier-1-uat
+    lab: cv-lab-tier-1
+  athena_query_result:
+    develop: s3://aws-athena-query-results-359298278138-us-east-2/
+    test: s3://aws-athena-query-results-359298278138-us-east-2/
+    prod_lake: s3://aws-athena-query-results-125730199582-us-east-2/
+    uat_lake: s3://aws-athena-query-results-125730199582-us-east-2/
+    lab: s3://aws-athena-query-results-834196577330-us-east-2/
+  prefix:
+    table_1: Mongo_streaming/CurrentSnapshots/
+  tables_not_part:
+    - Users
+    - Profiles
