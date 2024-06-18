@@ -1,2 +1,2 @@
-# Athena_Reload_Partition
-Script to reload Aws Athena partition using lambda 
+# Reload hive partition in Aws Athena
+Class to reload Aws Athena partition using lambda 
