@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-""" 
-Created by saul ramirez at 16/4/2021
-
-Updated by Saul Ramirez at 27/4/2021
-
-"""
 import logging
 from datetime import date as d
 
@@ -16,67 +9,60 @@ logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
 
-class Reload:
-    """"Class to reload athena partition by table
+class ReloadHivePartition:
+    """"Class to reload hive partition by table
     """
 
     _yaml_config = None         # type: dict
     _s3_path = None             # type: list
-    _s3_partition = None        # type: list
+    _s3_partition = []          # type: list
     _athena_partition = None    # type: list
-    _stage = None               # type: str
     _folder = None              # type: str
     _part_year_month = None     # type: str
     _kwargs = None              # type: dict
     _bucket = None              # type: str
 
     def __init__(self, **kwargs):
-        logger.info("Initialize class Athena Partition Reload ")
+        logger.info("Initialize class to Reload Hive Partition")
         self._kwargs = kwargs
         self._read_yaml_file()
-        self._set_stage()
         self._set_bucket()
 
     def reload(self) -> None:
-        """"Public method to call the execution order for athena reload partition process
+        """"Public method to call the execution order reload partition process
 
         Return:
             None
         """
-        self._set_folder_athena()
         self._get_year_month()
 
         if self._kwargs:
             prefix = self._kwargs.get('prefix')
             self._process_reload_partition(prefix)
         else:
-            for data in self._yaml_config['custom']['prefix']:
-                prefix = self._yaml_config['custom']['prefix'][data]
-                self._get_root_prefix(prefix)
+            prefix = self._yaml_config['prefix']
+            self._get_root_prefix(prefix)
+            self._process_reload_partition()
 
-    def _process_reload_partition(self, prefix: str) -> None:
+    def _process_reload_partition(self) -> None:
         """"Method to execute all the process to reload partition base on the prefix
-        Args:
-            prefix(str): prefix to reload partition
 
         Return:
             None
         """
-        tmp = prefix.split('/')
-        db = tmp[2].replace('-', '_')
-        table = tmp[3]
-        self._get_s3_prefix_partition(prefix)
+
+        table = self._yaml_config['table']
+        db = table.split(".")[0]
+        self._get_s3_prefix_partition()
         if self._s3_partition:
-            table_prefix = f"{db}.{table}_{self._folder}"
-            query = f"SHOW PARTITIONS {table_prefix}"
-            logger.info(f"Got Partition for {table} in db: {db}")
+            query = f"SHOW PARTITIONS {table}"
+            logger.info(f"Got Partition for {table}")
             response = self._run_query(query, db)
             query_status = self._get_status_query(response['QueryExecutionId'])
             if query_status:
                 self._get_athena_partition()
-                self._add_athena_partition(table_prefix, db)
-        else:
-            logger.info(f"Not partition in s3 prefix: {prefix}")
+                self._add_athena_partition(table, db)
+
 
     def _set_bucket(self) -> None:
         """" get the values from Kwargs , if the bucket are not in arguments, set bucket value from yaml file
@@ -88,11 +74,10 @@ class Reload:
         Return:
             None
         """
-        bucket = self._yaml_config['custom']['bucket_config'][self._stage]
+        bucket = self._yaml_config['bucket']
 
         if not bucket:
-            logger.error(f"Bucket not define in yaml file for the stage: {self._stage}")
-            raise Exception(f"Bucket not define in yaml file for the stage: {self._stage}")
+            raise Exception(f"Bucket not define in yaml file")
 
         self._bucket = bucket
 
@@ -105,22 +90,10 @@ class Reload:
         tmp_date = d.today().strftime("%Y/%m/%d")
         date = tmp_date.split('/')
         year, month = date[0], date[1]
-        part_year_month = f"year={year}/month={month}"
+        part_year_month = f"year={year}"
 
         if part_year_month:
             self._part_year_month = part_year_month
-
-    def _set_folder_athena(self) -> None:
-        """"set the folder(postfix) for the athena tables, if env is data lake or data lab
-        use raw_compressed else use raw
-
-        Return:
-            None
-        """
-        if self._stage in ('lab', 'prod_lake', 'uat_lake'):
-            self._folder = 'raw_compressed'
-        else:
-            self._folder = 'raw'
 
     def _add_athena_partition(self, table: str, database: str) -> None:
         """""add partition to athena table in case that partition exists in s3 but don't exists in athena
@@ -158,20 +131,11 @@ class Reload:
             for prefix in page.get('CommonPrefixes'):
                 args['Prefix'] = prefix.get('Prefix')
                 for sub_pages in paginator.paginate(**args):
-                    for sub_page in sub_pages.get('CommonPrefixes'):
-                        prefix = sub_page.get('Prefix')
-                        table = prefix.split('/')[-2]
-                        if table not in self._yaml_config['custom']['tables_not_part']:
-                            prefix = f"{prefix}{self._folder}/{self._part_year_month}"
-                            self._process_reload_partition(prefix)
+                    if sub_pages.get('CommonPrefixes') or sub_pages.get("Prefix"):
+                        if sub_pages.get("Prefix"):
+                            prefix = sub_pages.get('Prefix')
 
-    def _set_stage(self) -> None:
-        """"Set the stage from yaml config file and put in class variable _stage
-        Return:
-            None
-        """
-        if self._yaml_config:
-            self._stage = self._yaml_config['custom']['stage']
+                        self._s3_partition.append(prefix)
 
     def _read_yaml_file(self) -> None:
         """Read the Yaml file configuration and put in the class variable _yaml_config
@@ -186,7 +150,7 @@ class Reload:
         if data:
             self._yaml_config = data
 
-    def _get_s3_prefix_partition(self, prefix) -> None:
+    def _get_s3_prefix_partition(self, prefix=None) -> None:
         """"Get all the partition base on the prefix with the format year=2020/month06/day=02
         only if the prefix have a file with ext json.gz and put in class variable _s3_partition.
 
@@ -196,28 +160,12 @@ class Reload:
         Return:
             None
         """
-        if self._s3_partition:
-            self._s3_partition.clear()
 
         list_partition = []
-        args = {
-            'Bucket': self._bucket,
-            'Prefix': prefix
-            }
-
-        paginator = self.s3_client().get_paginator("list_objects_v2")
-        for page in paginator.paginate(**args):
-            if page.get('Contents'):
-                for keys in page['Contents']:
-                    key = (keys.get('Key')).split('/')[-4:]
-                    ext = key[-1].split('.')[-2:]
-                    delimiter = '.'
-                    ext = delimiter.join(ext)
-                    if ext == self._yaml_config['custom']['ext_file']:
-                        delimiter = '/'
-                        key = delimiter.join(key[:-1])
-                        if key not in list_partition:
-                            list_partition.append(key)
+        for item in self._s3_partition:
+            key = item.split('/')[-2]
+            if key not in list_partition:
+                list_partition.append(key)
 
         if list_partition:
             self._s3_partition = list_partition
@@ -232,7 +180,7 @@ class Reload:
             response(dict)
         """
         client = self.athena_client()
-        athena_result = self._yaml_config['custom']['athena_query_result'][self._stage]
+        athena_result = self._yaml_config['athena_query_result']
 
         config = {
             'OutputLocation': athena_result,
@@ -307,3 +255,4 @@ class Reload:
         s3 = boto3.client('s3')
 
         return s3
+
