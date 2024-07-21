@@ -15,3 +15,7 @@ Class to reload Aws Athena partition using lambda
     └── reload_athena.py
 
 ```
+
+
+### TO DO:
+- [ ] Add Terraform to deploy the project.
