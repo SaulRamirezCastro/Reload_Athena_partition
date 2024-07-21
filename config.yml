@@ -1,4 +1,0 @@
-bucket: src-personal-training
-athena_query_result: s3://athena-query-results-sramirez-personal/
-prefix: datasets/atus_anual_csv/atus_anual_1997_2020/conjunto_de_datos/
-table: cpdb.atus
