@@ -1,0 +1,22 @@
+{
+ "Version": "2012-10-17",
+ "Statement": [
+   {
+     "Action": [
+       "logs:CreateLogGroup",
+       "logs:CreateLogStream",
+       "logs:PutLogEvents",
+       "athena:StartQueryExecution",
+       "athena:GetQueryResults",
+       "athena:GetQueryExecution",
+       "lambda:InvokeFunction",
+       "s3:PutObject",
+       "s3:GetObject",
+       "s3:GetBucketLocation",
+       "s3:AbortMultipartUpload"
+     ],
+     "Resource": "arn:aws:logs:*:*:*",
+     "Effect": "Allow"
+   }
+ ]
+}
