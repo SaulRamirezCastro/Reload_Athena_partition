@@ -44,5 +44,7 @@ resource "aws_lambda_function" "lambda_reload_athena" {
   filename = "${path.module}/src/lambda_athena.zip"
   handler = "lambda_function.lambda_handler"
   runtime = "python3.8"
+  timeout = 300
+  layers = ["arn:aws:lambda:us-east-1:553264372403:layer:layer:1"]
   depends_on = [aws_iam_role_policy_attachment.attach_aim_polity_to_role]
 }
