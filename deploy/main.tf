@@ -52,12 +52,12 @@ resource "aws_lambda_function" "lambda_reload_athena" {
 resource "aws_cloudwatch_event_rule" "scheduler_event" {
   name = "scheduler_athena_reload"
   description = "Schedule for lambda function to reload athena partition every day"
-  schedule_expression = "cron(0 0 * * Mon-Fri *)"
+  schedule_expression = "cron(0 0 ? * Mon-Fri *)"
 }
 
 resource "aws_cloudwatch_event_target" "schedule_lambda" {
   arn  = aws_lambda_function.lambda_reload_athena.arn
-  target_id = "lambda_reload_athena-"
+  target_id = "lambda_reload_athena"
   rule = aws_cloudwatch_event_rule.scheduler_event.name
 }
 resource "aws_lambda_permission" "trigger_lambda" {
@@ -65,4 +65,5 @@ resource "aws_lambda_permission" "trigger_lambda" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.lambda_reload_athena.function_name
   principal     = "events.amazonaws.com"
+  source_arn = aws_cloudwatch_event_rule.scheduler_event.arn
 }
